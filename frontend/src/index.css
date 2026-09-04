@@ -1,0 +1,178 @@
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --bg: #f3f4f6;
+  --card-bg: #ffffff;
+  --border: #e5e7eb;
+  --text: #111827;
+  --muted: #6b7280;
+  --error: #b91c1c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+button.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+button.primary:hover { background: var(--primary-dark); }
+
+input, select, textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.error { color: var(--error); font-weight: 500; }
+.muted { color: var(--muted); }
+
+/* Topbar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.brand { font-weight: 700; font-size: 18px; }
+.topbar nav { display: flex; gap: 16px; flex-wrap: wrap; }
+.topbar nav a { color: var(--text); text-decoration: none; font-size: 14px; }
+.topbar nav a:hover { color: var(--primary); }
+.user-info { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+
+.content { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+/* Auth */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.auth-card { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 14px; }
+.demo-accounts { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.demo-accounts ul { margin: 4px 0 0; padding-left: 18px; }
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+/* Stats */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 16px 0 32px;
+}
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-card span { font-size: 24px; font-weight: 700; }
+.stat-card label { font-size: 13px; }
+
+/* Table */
+.table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 10px; overflow: hidden; }
+.table th, .table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.table th { background: #f9fafb; font-weight: 600; }
+.table a { color: var(--primary); text-decoration: none; }
+
+.badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Filter bar */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  background: var(--card-bg);
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.filter-bar input, .filter-bar select { flex: 1; min-width: 130px; }
+
+/* Forms */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.full-width { grid-column: 1 / -1; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Voucher details */
+.detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.detail-grid label { text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+.detail-grid p { margin: 2px 0 0; font-size: 15px; }
+.signature { max-width: 180px; max-height: 80px; border: 1px solid var(--border); border-radius: 6px; padding: 4px; background: #fff; }
+
+.approval-panel {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.reject-box { display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+
+@media (max-width: 640px) {
+  .topbar { flex-direction: column; align-items: flex-start; }
+}
