@@ -27,7 +27,7 @@ CREATE TABLE "Vouchers" (
   "expenseTitle" VARCHAR(255) NOT NULL,
   "expenseCategory" VARCHAR(255),
   "expenseDescription" TEXT,
-  amount DECIMAL(12,2) NOT NULL CHECK (amount > 0),
+  amount DECIMAL(12,2) NOT NULL CHECK (amount > 0 AND amount <= 10000000),
   "employeeUserId" INTEGER NOT NULL REFERENCES "Users"(id) ON UPDATE CASCADE,
   "employeeName" VARCHAR(255) NOT NULL,
   "employeeIdCode" VARCHAR(255),
@@ -40,3 +40,6 @@ CREATE TABLE "Vouchers" (
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX "vouchers_employee_user_id" ON "Vouchers" ("employeeUserId");
+CREATE INDEX "vouchers_status" ON "Vouchers" ("status");

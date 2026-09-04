@@ -100,10 +100,13 @@ export default function VoucherForm() {
           Expense Category
           <input value={form.expenseCategory} onChange={(e) => update('expenseCategory', e.target.value)} />
         </label>
-        <label>
-          Amount *
-          <input type="number" min="0.01" step="0.01" value={form.amount} onChange={(e) => update('amount', e.target.value)} required />
-        </label>
+        <div className="form-group">
+          <label>Amount *</label>
+          <div className="input-prefix">
+            <span>₹</span>
+            <input type="number" min="0.01" step="0.01" value={form.amount} onChange={(e) => update('amount', e.target.value)} required />
+          </div>
+        </div>
         <label>
           Employee ID (optional)
           <input value={form.employeeIdCode} onChange={(e) => update('employeeIdCode', e.target.value)} />
@@ -118,8 +121,8 @@ export default function VoucherForm() {
         </label>
       </div>
       <div className="actions">
-        <button disabled={saving} onClick={() => handleSave(false)}>Save as Draft</button>
-        <button disabled={saving} className="primary" onClick={() => handleSave(true)}>Submit for Approval</button>
+        <button className={`secondary${saving ? ' is-loading' : ''}`} disabled={saving} onClick={() => handleSave(false)}>Save as Draft</button>
+        <button className={`primary${saving ? ' is-loading' : ''}`} disabled={saving} onClick={() => handleSave(true)}>Submit for Approval</button>
       </div>
     </div>
   );

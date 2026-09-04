@@ -4,8 +4,24 @@ import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import StatusBadge from '../../components/StatusBadge';
 
-const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-const sigUrl = (filename) => `${API_ORIGIN}/uploads/signatures/${filename}`;
+// Signatures are served from an authenticated endpoint (not a public static path), so a
+// plain <img src> can't carry the auth header - fetch it as a blob and point the <img> at
+// an object URL instead.
+function SignatureImage({ voucherId, type, alt }) {
+  const [src, setSrc] = useState(null);
+
+  useEffect(() => {
+    let objectUrl;
+    api.get(`/vouchers/${voucherId}/signature`, { params: { type }, responseType: 'blob' }).then((res) => {
+      objectUrl = URL.createObjectURL(res.data);
+      setSrc(objectUrl);
+    });
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [voucherId, type]);
+
+  if (!src) return <p className="muted">Loading...</p>;
+  return <img className="signature" src={src} alt={alt} />;
+}
 
 export default function VoucherDetails() {
   const { id } = useParams();
@@ -104,20 +120,20 @@ export default function VoucherDetails() {
         <div><label>Department</label><p>{voucher.departmentName}</p></div>
         <div><label>Expense Title</label><p>{voucher.expenseTitle}</p></div>
         <div><label>Category</label><p>{voucher.expenseCategory || '—'}</p></div>
-        <div><label>Amount</label><p>₹{Number(voucher.amount).toLocaleString()}</p></div>
+        <div><label>Amount</label><p className="amount">₹{Number(voucher.amount).toLocaleString()}</p></div>
         <div className="full-width"><label>Description</label><p>{voucher.expenseDescription || '—'}</p></div>
         <div><label>Employee</label><p>{voucher.employeeName}</p></div>
         <div><label>Employee ID</label><p>{voucher.employeeIdCode || '—'}</p></div>
         <div>
           <label>Employee Signature</label>
           {voucher.employeeSignature
-            ? <img className="signature" src={sigUrl(voucher.employeeSignature)} alt="Employee signature" />
+            ? <SignatureImage voucherId={id} type="employee" alt="Employee signature" />
             : <p className="muted">Not uploaded</p>}
         </div>
         <div>
           <label>Director Signature</label>
           {voucher.directorSignature
-            ? <img className="signature" src={sigUrl(voucher.directorSignature)} alt="Director signature" />
+            ? <SignatureImage voucherId={id} type="director" alt="Director signature" />
             : <p className="muted">Not uploaded</p>}
         </div>
         <div><label>Approval Date</label><p>{voucher.approvalDate ? new Date(voucher.approvalDate).toLocaleString() : '—'}</p></div>
@@ -130,9 +146,9 @@ export default function VoucherDetails() {
 
       {isOwner && isDraft && (
         <div className="actions">
-          <Link to={`/vouchers/${id}/edit`}><button>Edit</button></Link>
-          <button onClick={handleDelete} disabled={busy}>Delete</button>
-          <button className="primary" onClick={handleSubmit} disabled={busy}>Submit for Approval</button>
+          <Link to={`/vouchers/${id}/edit`}><button className="secondary">Edit</button></Link>
+          <button className="danger" onClick={handleDelete} disabled={busy}>Delete</button>
+          <button className={`primary${busy ? ' is-loading' : ''}`} onClick={handleSubmit} disabled={busy}>Submit for Approval</button>
         </div>
       )}
 
@@ -144,8 +160,8 @@ export default function VoucherDetails() {
             <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setDirectorSignature(e.target.files[0])} />
           </label>
           <div className="actions">
-            <button className="primary" onClick={handleApprove} disabled={busy}>Approve</button>
-            <button onClick={() => setShowReject((s) => !s)} disabled={busy}>Reject</button>
+            <button className={`primary${busy ? ' is-loading' : ''}`} onClick={handleApprove} disabled={busy}>Approve</button>
+            <button className="secondary" onClick={() => setShowReject((s) => !s)} disabled={busy}>Reject</button>
           </div>
           {showReject && (
             <div className="reject-box">
@@ -153,7 +169,7 @@ export default function VoucherDetails() {
                 Rejection Reason
                 <textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} />
               </label>
-              <button onClick={handleReject} disabled={busy}>Confirm Rejection</button>
+              <button className={`danger${busy ? ' is-loading' : ''}`} onClick={handleReject} disabled={busy}>Confirm Rejection</button>
             </div>
           )}
         </div>

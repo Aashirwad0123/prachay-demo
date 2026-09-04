@@ -1,19 +1,22 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
+const { jwt: jwtCfg } = require('../config/security');
 
 function signToken(id) {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+    algorithm: jwtCfg.algorithm,
+    expiresIn: jwtCfg.expiresIn,
   });
 }
 
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, password, role, employeeId, department } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'name, email and password are required' });
-    }
+    // req.body is already validated/typed by the registerSchema middleware, which does
+    // not accept a `role` field at all - public registration always creates an EMPLOYEE.
+    // Privileged roles (DIRECTOR, ACCOUNTS) are only ever set by utils/seed.js or a
+    // direct DB operation, never through this endpoint.
+    const { name, email, password, employeeId, department } = req.body;
     const existing = await User.findOne({ where: { email } });
     if (existing) return res.status(409).json({ message: 'Email already registered' });
 
@@ -22,17 +25,14 @@ exports.register = async (req, res, next) => {
       name,
       email,
       password: hash,
-      role: role || 'EMPLOYEE',
+      role: 'EMPLOYEE',
       employeeId,
       department,
     });
 
     res.status(201).json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
       token: signToken(user.id),
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
     next(err);
@@ -42,21 +42,20 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: 'email and password are required' });
-    }
     const user = await User.findOne({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Incorrect email or password. Please check and try again.' });
     }
     res.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      department: user.department,
-      employeeId: user.employeeId,
       token: signToken(user.id),
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        employeeId: user.employeeId,
+      },
     });
   } catch (err) {
     next(err);

@@ -1,17 +1,25 @@
 const { Op } = require('sequelize');
+const fs = require('fs');
+const path = require('path');
 const { Voucher, User } = require('../models');
 const generateVoucherNumber = require('../utils/generateVoucherNumber');
+const { pagination: paginationCfg } = require('../config/security');
 
 const INCLUDE = [
   { model: User, as: 'employee', attributes: ['id', 'name', 'email', 'department'] },
   { model: User, as: 'approver', attributes: ['id', 'name', 'email'] },
 ];
 
+const SIGNATURE_DIR = path.join(__dirname, '..', 'uploads', 'signatures');
+const MIME_BY_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+
+// req.query has already passed listQuerySchema (route-level validate middleware), so
+// sortBy/order/page/limit are guaranteed to be one of the allowed values or undefined.
 function buildQueryOptions(query) {
   const where = {};
   const {
     search, voucherNumber, employeeName, department, category, status,
-    dateFrom, dateTo, amountMin, amountMax, sortBy, order,
+    dateFrom, dateTo, amountMin, amountMax, sortBy, order, page, limit,
   } = query;
 
   if (search) {
@@ -38,11 +46,15 @@ function buildQueryOptions(query) {
     if (amountMax) where.amount[Op.lte] = amountMax;
   }
 
-  const sortableFields = ['createdAt', 'amount', 'expenseDate', 'voucherNumber', 'status'];
-  const sortField = sortableFields.includes(sortBy) ? sortBy : 'createdAt';
-  const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+  const effectiveLimit = Math.min(limit || paginationCfg.defaultLimit, paginationCfg.maxLimit);
+  const effectivePage = page || 1;
 
-  return { where, order: [[sortField, sortOrder]] };
+  return {
+    where,
+    order: [[sortBy || 'createdAt', (order || 'desc').toUpperCase()]],
+    limit: effectiveLimit,
+    offset: (effectivePage - 1) * effectiveLimit,
+  };
 }
 
 // EMPLOYEE — create (draft or submit)
@@ -53,16 +65,8 @@ exports.createVoucher = async (req, res, next) => {
       expenseDescription, amount, employeeIdCode, submit,
     } = req.body;
 
-    if (!expenseDate || !departmentName || !expenseTitle || !amount) {
-      return res.status(400).json({ message: 'expenseDate, departmentName, expenseTitle and amount are required' });
-    }
-    if (Number(amount) <= 0) {
-      return res.status(400).json({ message: 'amount must be greater than 0' });
-    }
-
-    const isSubmit = submit === 'true' || submit === true;
     const signature = req.file ? req.file.filename : null;
-    if (isSubmit && !signature) {
+    if (submit && !signature) {
       return res.status(400).json({ message: 'Employee signature is required to submit a voucher' });
     }
 
@@ -79,7 +83,7 @@ exports.createVoucher = async (req, res, next) => {
       employeeName: req.user.name,
       employeeIdCode: employeeIdCode || req.user.employeeId,
       employeeSignature: signature,
-      status: isSubmit ? 'PENDING_APPROVAL' : 'DRAFT',
+      status: submit ? 'PENDING_APPROVAL' : 'DRAFT',
     });
 
     res.status(201).json(voucher);
@@ -105,13 +109,8 @@ exports.updateVoucher = async (req, res, next) => {
       expenseDescription, amount, employeeIdCode, submit,
     } = req.body;
 
-    if (amount !== undefined && Number(amount) <= 0) {
-      return res.status(400).json({ message: 'amount must be greater than 0' });
-    }
-
-    const isSubmit = submit === 'true' || submit === true;
     const signature = req.file ? req.file.filename : voucher.employeeSignature;
-    if (isSubmit && !signature) {
+    if (submit && !signature) {
       return res.status(400).json({ message: 'Employee signature is required to submit a voucher' });
     }
 
@@ -124,7 +123,7 @@ exports.updateVoucher = async (req, res, next) => {
       amount: amount ?? voucher.amount,
       employeeIdCode: employeeIdCode ?? voucher.employeeIdCode,
       employeeSignature: signature,
-      status: isSubmit ? 'PENDING_APPROVAL' : 'DRAFT',
+      status: submit ? 'PENDING_APPROVAL' : 'DRAFT',
     });
 
     res.json(voucher);
@@ -175,9 +174,9 @@ exports.submitVoucher = async (req, res, next) => {
 // EMPLOYEE — own vouchers
 exports.getMyVouchers = async (req, res, next) => {
   try {
-    const { where, order } = buildQueryOptions(req.query);
+    const { where, order, limit, offset } = buildQueryOptions(req.query);
     where.employeeUserId = req.user.id;
-    const vouchers = await Voucher.findAll({ where, order, include: INCLUDE });
+    const vouchers = await Voucher.findAll({ where, order, limit, offset, include: INCLUDE });
     res.json(vouchers);
   } catch (err) {
     next(err);
@@ -187,9 +186,9 @@ exports.getMyVouchers = async (req, res, next) => {
 // DIRECTOR — pending approvals
 exports.getPendingVouchers = async (req, res, next) => {
   try {
-    const { where, order } = buildQueryOptions(req.query);
+    const { where, order, limit, offset } = buildQueryOptions(req.query);
     where.status = 'PENDING_APPROVAL';
-    const vouchers = await Voucher.findAll({ where, order, include: INCLUDE });
+    const vouchers = await Voucher.findAll({ where, order, limit, offset, include: INCLUDE });
     res.json(vouchers);
   } catch (err) {
     next(err);
@@ -199,8 +198,8 @@ exports.getPendingVouchers = async (req, res, next) => {
 // DIRECTOR, ACCOUNTS — all vouchers
 exports.getAllVouchers = async (req, res, next) => {
   try {
-    const { where, order } = buildQueryOptions(req.query);
-    const vouchers = await Voucher.findAll({ where, order, include: INCLUDE });
+    const { where, order, limit, offset } = buildQueryOptions(req.query);
+    const vouchers = await Voucher.findAll({ where, order, limit, offset, include: INCLUDE });
     res.json(vouchers);
   } catch (err) {
     next(err);
@@ -249,9 +248,6 @@ exports.approveVoucher = async (req, res, next) => {
 exports.rejectVoucher = async (req, res, next) => {
   try {
     const { rejectionReason } = req.body;
-    if (!rejectionReason || !rejectionReason.trim()) {
-      return res.status(400).json({ message: 'rejectionReason is required to reject a voucher' });
-    }
     const voucher = await Voucher.findByPk(req.params.id);
     if (!voucher) return res.status(404).json({ message: 'Voucher not found' });
     if (voucher.status !== 'PENDING_APPROVAL') {
@@ -264,6 +260,34 @@ exports.rejectVoucher = async (req, res, next) => {
       approvedByUserId: req.user.id,
     });
     res.json(voucher);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// EMPLOYEE (own), DIRECTOR, ACCOUNTS — stream a signature image.
+// Filenames are never taken from the request - only ?type selects which DB column to
+// read, so there is no path-traversal surface, and access requires the same
+// authentication + ownership rule as reading the voucher itself.
+exports.getSignature = async (req, res, next) => {
+  try {
+    const type = req.query.type === 'director' ? 'director' : 'employee';
+    const voucher = await Voucher.findByPk(req.params.id);
+    if (!voucher) return res.status(404).json({ message: 'Voucher not found' });
+    if (req.user.role === 'EMPLOYEE' && voucher.employeeUserId !== req.user.id) {
+      return res.status(403).json({ message: 'You do not own this voucher' });
+    }
+
+    const filename = type === 'director' ? voucher.directorSignature : voucher.employeeSignature;
+    if (!filename) return res.status(404).json({ message: 'Signature not found' });
+
+    const filePath = path.join(SIGNATURE_DIR, filename);
+    if (!filePath.startsWith(SIGNATURE_DIR) || !fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'Signature not found' });
+    }
+
+    res.setHeader('Content-Type', MIME_BY_EXT[path.extname(filename).toLowerCase()] || 'application/octet-stream');
+    fs.createReadStream(filePath).pipe(res);
   } catch (err) {
     next(err);
   }

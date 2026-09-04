@@ -55,31 +55,37 @@ export default function VoucherList({ endpoint, title, showStatusFilter = true }
         <button type="submit">Apply</button>
       </form>
 
-      {loading ? <p>Loading...</p> : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Voucher #</th><th>Employee</th><th>Department</th><th>Title</th>
-              <th>Amount</th><th>Status</th><th>Expense Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vouchers.map((v) => (
-              <tr key={v.id}>
-                <td><Link to={`/vouchers/${v.id}`}>{v.voucherNumber}</Link></td>
-                <td>{v.employeeName}</td>
-                <td>{v.departmentName}</td>
-                <td>{v.expenseTitle}</td>
-                <td>₹{Number(v.amount).toLocaleString()}</td>
-                <td><StatusBadge status={v.status} /></td>
-                <td>{v.expenseDate}</td>
+      {loading ? (
+        <div className="skeleton" style={{ height: 200 }} />
+      ) : vouchers.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">🗂️</div>
+          No vouchers found.
+        </div>
+      ) : (
+        <div className="table-responsive">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Voucher #</th><th>Employee</th><th>Department</th><th>Title</th>
+                <th>Amount</th><th>Status</th><th>Expense Date</th>
               </tr>
-            ))}
-            {vouchers.length === 0 && (
-              <tr><td colSpan={7} className="muted">No vouchers found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {vouchers.map((v) => (
+                <tr key={v.id}>
+                  <td><Link to={`/vouchers/${v.id}`}>{v.voucherNumber}</Link></td>
+                  <td>{v.employeeName}</td>
+                  <td>{v.departmentName}</td>
+                  <td>{v.expenseTitle}</td>
+                  <td className="amount">₹{Number(v.amount).toLocaleString()}</td>
+                  <td><StatusBadge status={v.status} /></td>
+                  <td>{v.expenseDate}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const NAV = {
@@ -25,24 +25,27 @@ export default function Layout() {
   return (
     <div>
       <header className="topbar">
-        <span className="brand">Expense Vouchers</span>
-        <nav>
-          {NAV[user.role].map((item) => (
-            <Link key={item.to} to={item.to}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="user-info">
-          <span>{user.name} ({user.role})</span>
-          <button
-            onClick={() => {
-              logout();
-              navigate('/login');
-            }}
-          >
-            Sign out
-          </button>
+        <div className="topbar-inner">
+          <span className="brand">Expense Vouchers</span>
+          <nav>
+            {NAV[user.role].map((item) => (
+              <NavLink key={item.to} to={item.to} end={item.to === '/'}>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="user-info">
+            <span>{user.name} ({user.role})</span>
+            <button
+              className="ghost"
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
       <main className="content">

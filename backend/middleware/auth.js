@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
+const { jwt: jwtCfg } = require('../config/security');
 
 async function protect(req, res, next) {
   const header = req.headers.authorization;
@@ -8,7 +9,9 @@ async function protect(req, res, next) {
   }
   try {
     const token = header.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: [jwtCfg.algorithm] });
+    // The token only carries an id - role/authorization always comes from a fresh DB read,
+    // never from the token payload, so a stale/forged claim in the token can't grant access.
     const user = await User.findByPk(decoded.id);
     if (!user) return res.status(401).json({ message: 'User no longer exists' });
     req.user = user;

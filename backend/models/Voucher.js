@@ -13,7 +13,7 @@ const Voucher = sequelize.define('Voucher', {
   amount: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
-    validate: { min: 0.01 },
+    validate: { min: 0.01, max: 10000000 },
   },
   employeeUserId: { type: DataTypes.INTEGER, allowNull: false },
   employeeName: { type: DataTypes.STRING, allowNull: false },
@@ -28,6 +28,11 @@ const Voucher = sequelize.define('Voucher', {
   approvalDate: { type: DataTypes.DATE, allowNull: true },
   rejectionReason: { type: DataTypes.TEXT, allowNull: true },
   approvedByUserId: { type: DataTypes.INTEGER, allowNull: true },
+}, {
+  indexes: [
+    { fields: ['employeeUserId'] },
+    { fields: ['status'] },
+  ],
 });
 
 Voucher.belongsTo(User, { as: 'employee', foreignKey: 'employeeUserId' });

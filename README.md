@@ -15,7 +15,8 @@ for reimbursement. Three roles, one REST API, one React SPA.
 | ORM      | Sequelize |
 | Database | PostgreSQL |
 | Auth     | JWT (`jsonwebtoken`) + `bcryptjs` password hashing |
-| Uploads  | Multer, disk storage |
+| Uploads  | Multer, disk storage, magic-byte content verification (`file-type`) |
+| Security | `helmet`, `express-rate-limit`, `zod` schema validation — see [SECURITY.md](SECURITY.md) |
 
 ## Project Structure
 
@@ -66,6 +67,10 @@ read-only for the employee. Only the Director can approve/reject, and only from
 `PENDING_APPROVAL`. Approved/Rejected vouchers have no further transitions.
 
 ## Database Schema
+
+A raw-SQL reference dump is at [`backend/schema.sql`](backend/schema.sql) — the exact
+tables/types/indexes `sequelize.sync()` creates automatically on first run (see
+Setup & Run below). You don't need to run it by hand; it's there for review/reference.
 
 ### `users`
 
@@ -182,8 +187,10 @@ Created by `npm run seed` (password for all: `Password@123`):
 Base URL: `http://localhost:5000/api`. Protected routes require `Authorization: Bearer <token>`.
 
 ### Auth
-- `POST /auth/register` — public. Body: `{ name, email, password, role?, employeeId?, department? }` → `201` with `token`.
-- `POST /auth/login` — public. Body: `{ email, password }` → `200` with `token`.
+- `POST /auth/register` — public, rate limited. Body: `{ name, email, password, employeeId?, department? }` → `201` with `{ token, user }`.
+  The `role` field is **not accepted** — public registration always creates an `EMPLOYEE`;
+  see [SECURITY.md](SECURITY.md).
+- `POST /auth/login` — public, rate limited. Body: `{ email, password }` → `200` with `{ token, user }`.
 - `GET /auth/me` — any authenticated user → current user object.
 
 ### Vouchers
@@ -191,18 +198,23 @@ Base URL: `http://localhost:5000/api`. Protected routes require `Authorization: 
 - `PUT /vouchers/:id` — EMPLOYEE, owner only, Draft only. Same fields, all optional (partial update).
 - `DELETE /vouchers/:id` — EMPLOYEE, owner only, Draft only.
 - `POST /vouchers/:id/submit` — EMPLOYEE, owner only. Moves an existing Draft (with a signature already on file) to Pending Approval.
-- `GET /vouchers/mine` — EMPLOYEE. Own vouchers only. Supports search/filter/sort (below).
+- `GET /vouchers/mine` — EMPLOYEE. Own vouchers only. Supports search/filter/sort/pagination (below).
 - `GET /vouchers/pending` — DIRECTOR. All `PENDING_APPROVAL` vouchers.
 - `POST /vouchers/:id/approve` — DIRECTOR. `multipart/form-data`: `directorSignature (file)` (required unless already on file). Only from Pending Approval.
 - `POST /vouchers/:id/reject` — DIRECTOR. Body: `{ rejectionReason }` (required). Only from Pending Approval.
 - `GET /vouchers` — DIRECTOR, ACCOUNTS. All vouchers.
 - `GET /vouchers/:id` — EMPLOYEE (own only, else `403`), DIRECTOR, ACCOUNTS.
+- `GET /vouchers/:id/signature?type=employee|director` — same access rule as `GET /vouchers/:id`.
+  Streams the signature image. Requires `Authorization: Bearer <token>` — there is no
+  public/static route for signature files anymore (see [SECURITY.md](SECURITY.md)).
 
-**Search / filter / sort** (bonus, spec §7) — query params on `/vouchers`, `/vouchers/mine`, `/vouchers/pending`:
+**Search / filter / sort / pagination** (bonus, spec §7) — query params on `/vouchers`, `/vouchers/mine`, `/vouchers/pending`:
 `search`, `voucherNumber`, `employeeName`, `department`, `category`, `status`, `dateFrom`,
-`dateTo`, `amountMin`, `amountMax`, `sortBy` (`createdAt|amount|expenseDate|voucherNumber|status`), `order` (`asc|desc`).
+`dateTo`, `amountMin`, `amountMax`, `sortBy` (`createdAt|amount|expenseDate|voucherNumber|status`),
+`order` (`asc|desc`), `page` (default `1`), `limit` (default `20`, max `100`). Responses stay a
+plain array (unchanged shape) — pagination only caps/windows it.
 
-Example: `GET /vouchers?status=PENDING_APPROVAL&department=Sales&sortBy=amount&order=desc`
+Example: `GET /vouchers?status=PENDING_APPROVAL&department=Sales&sortBy=amount&order=desc&page=1&limit=20`
 
 ### Dashboards
 - `GET /dashboard/employee` — `{ totalVouchers, draftVouchers, pendingApproval, approvedVouchers, rejectedVouchers, totalAmountClaimed }`
@@ -213,8 +225,14 @@ Example: `GET /vouchers?status=PENDING_APPROVAL&department=Sales&sortBy=amount&o
 `GET /uploads/signatures/<filename>` — serves an uploaded signature image directly.
 
 ### Errors
-All errors: `{ "message": "..." }` with status `400` (validation), `401` (auth), `403`
-(forbidden/ownership), `404` (not found), `409` (duplicate email), `500` (server error).
+Most errors: `{ "message": "..." }` with status `400` (bad request), `401` (auth), `403`
+(forbidden/ownership), `404` (not found), `409` (duplicate email), `413` (body too large),
+`429` (rate limited), `500` (server error, includes a `requestId` for log correlation).
+
+Schema-validation failures (bad/missing/unknown fields) use a structured `400`:
+```json
+{ "message": "Validation failed", "errors": { "amount": "Amount must be greater than 0" } }
+```
 
 ## Validation Rules (enforced server-side)
 
@@ -241,11 +259,20 @@ All errors: `{ "message": "..." }` with status `400` (validation), `401` (auth),
 6. **Voucher number format** `EV-<year>-<00001>`, sequential per year — the spec only
    requires uniqueness and auto-generation.
 
+## Security
+
+Authentication, authorization, input validation, rate limiting, file-upload hardening,
+and their known limitations are documented in [SECURITY.md](SECURITY.md). Run the
+backend security test suite with:
+```bash
+cd backend
+npm test
+```
+(runs against an in-memory SQLite DB — no Postgres instance required.)
+
 ## Known Limitations
 
 - `sequelize.sync()` is used instead of versioned migrations — fine for this scope; a
   production app should use `sequelize-cli` migrations.
-- Signature files are served from an unauthenticated static route (filenames are
-  unguessable but not access-controlled).
-- No automated test suite, given the assignment timeline.
-- No pagination on voucher list endpoints.
+- No CI dependency scanner configured — run `npm audit` manually before a release.
+- Structured request logs go to stdout only — no log shipping/aggregation.
